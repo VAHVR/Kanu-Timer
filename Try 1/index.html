@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Kanu Timer mit Tor-Strafen</title>
+</head>
+<body>
+
+<h1>Kanu Timer</h1>
+
+<button onclick="start()">Start</button>
+<button onclick="stop()">Ziel</button>
+<button onclick="reset()">Reset</button>
+
+<p id="output">Zeit: -</p>
+    
+<p>
+  Anzahl Tore: <input type="number" id="anzahlTore" value="6" min="1">
+  <button onclick="bauTore()">OK</button>
+</p>
+
+<div id="torContainer"></div>
+
+<script>
+  // Variablen
+  let startTime = null;
+  let intervalId = null;
+  let los = 0;
+  let torStrafen = [];
+
+  // Start-Funktion
+  function start() {
+    if (los === 1) {
+      alert("Lauf läuft schon!");
+      return;
+    }
+    startTime = Date.now();
+    los = 1;
+    intervalId = setInterval(updateTime, 100);
+  }
+
+  // Stop-Funktion
+  function stop() {
+    if (los === 1) {
+      updateTime(); // final update
+      clearInterval(intervalId);
+      los = 0;
+    } else {
+      alert("Bitte zuerst Start drücken!");
+    }
+  }
+
+  // Reset-Funktion
+  function reset() {
+    clearInterval(intervalId);
+    startTime = null;
+    los = 0;
+    torStrafen = torStrafen.map(_ => 0);
+    document.getElementById("output").innerText = "Zeit: -";
+
+    // reset Anzeige der Tor-Strafen
+    for (let i = 0; i < torStrafen.length; i++) {
+      const span = document.getElementById(`tor${i}Anzeige`);
+      if(span) span.innerText = "0";
+    }
+  }
+
+  // Live-Zeit aktualisieren
+  function updateTime() {
+    const currentTime = (Date.now() - startTime) / 1000;
+    const totalStrafen = torStrafen.reduce((a, b) => a + b, 0);
+    const totalTime = currentTime + totalStrafen;
+    document.getElementById("output").innerText =
+      "Zeit: " + totalTime.toFixed(2) + " s";
+  }
+
+  // Dynamische Tore bauen
+  function bauTore() {
+    const container = document.getElementById("torContainer");
+    container.innerHTML = "";
+    const n = parseInt(document.getElementById("anzahlTore").value);
+    torStrafen = new Array(n).fill(0);
+
+    for (let i = 0; i < n; i++) {
+      const div = document.createElement("div");
+      div.className = "tor";
+      div.innerHTML = `
+        Tor ${i + 1}:
+        <button onclick="setStrafe(${i},50)">50</button>
+        <button onclick="setStrafe(${i},2)">2</button>
+        <button onclick="setStrafe(${i},0)">/</button>
+        <span id="tor${i}Anzeige">0</span>
+      `;
+      container.appendChild(div);
+    }
+  }
+
+  // Torstrafe setzen
+  function setStrafe(index, wert) {
+    torStrafen[index] = wert;
+    document.getElementById(`tor${index}Anzeige`).innerText = wert;
+  }
+</script>
+
+</body>
+</html>
