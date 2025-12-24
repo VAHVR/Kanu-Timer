@@ -143,13 +143,26 @@ function newRun(t){ return { start:null, end:null, strafen:new Array(t).fill(0),
 let athletes = JSON.parse(localStorage.getItem('athletes')) || [];
 let activeAthlete = 0;
 let activeInterval = null;
+let remoteInitialized = false; // set true after first remote snapshot
 
 function normalizeAthletes(data){
-  return (data || []).map(a => {
+  // Firebase may return an array or an object with numeric keys — normalize to array
+  let arr = [];
+  if(!data) arr = [];
+  else if(Array.isArray(data)) arr = data;
+  else if(typeof data === 'object'){
+    // collect numeric keys in order
+    const keys = Object.keys(data).filter(k => String(parseInt(k,10)) === k).sort((x,y)=>Number(x)-Number(y));
+    if(keys.length){ arr = keys.map(k => data[k]); }
+    else { arr = Object.values(data); }
+  } else arr = [];
+
+  return (arr || []).map(a => {
+    a = a || {};
     a.anzahlTore = a.anzahlTore || 20;
     a.activeRun = typeof a.activeRun === 'number' ? a.activeRun : 0;
     a.runs = a.runs && a.runs.length ? a.runs : [newRun(a.anzahlTore), newRun(a.anzahlTore)];
-    a.runs = a.runs.map(r => ({ start: r.start||null, end: r.end||null, strafen: r.strafen || new Array(a.anzahlTore).fill(0), toreGebaut: !!r.toreGebaut }));
+    a.runs = a.runs.map(r => ({ start: r && r.start? r.start : null, end: r && r.end ? r.end : null, strafen: (r && r.strafen) || new Array(a.anzahlTore).fill(0), toreGebaut: !!(r && r.toreGebaut) }));
     return a;
   });
 }
@@ -157,6 +170,12 @@ function normalizeAthletes(data){
 function save(){
   if(mode === 'offline'){
     localStorage.setItem('athletes', JSON.stringify(athletes));
+    return Promise.resolve();
+  }
+  // Avoid overwriting remote before we've loaded it once
+  if(!remoteInitialized){
+    // queue write for after initial snapshot — simply skip write now
+    console.warn('save skipped: remote not initialized yet');
     return Promise.resolve();
   }
   pendingWrites['/athletes'] = now();
@@ -176,13 +195,31 @@ function loadOffline(){
 
 function initOnline(){
   db.ref('athletes').off();
-  db.ref('athletes').on('value', snap => {
-    const remote = snap.val() || [];
-    const lastWrite = pendingWrites['/athletes'] || 0;
-    if(now() - lastWrite < 300) return; // ignore our own echo
-    athletes = normalizeAthletes(remote);
-    restartActiveInterval();
+  // initial fetch to ensure UI is populated immediately after switching to online
+  db.ref('athletes').once('value').then(snap => {
+    const remote = snap.val();
+    remoteInitialized = true;
+    const normalized = normalizeAthletes(remote);
+    athletes = normalized;
+    if(!athletes.length) activeAthlete = 0;
+    else if(activeAthlete >= athletes.length) activeAthlete = athletes.length - 1;
     render();
+    restartActiveInterval();
+  }).catch(err => {
+    console.warn('initial fetch failed', err);
+  }).finally(()=>{
+    // attach live listener for subsequent updates
+    db.ref('athletes').on('value', snap => {
+      const remote = snap.val();
+      const lastWrite = pendingWrites['/athletes'] || 0;
+      if(now() - lastWrite < 250) return; // ignore immediate echoes
+      const normalized = normalizeAthletes(remote);
+      athletes = normalized;
+      if(!athletes.length) activeAthlete = 0;
+      else if(activeAthlete >= athletes.length) activeAthlete = athletes.length - 1;
+      render();
+      restartActiveInterval();
+    });
   });
 }
 
@@ -191,10 +228,17 @@ function restartActiveInterval(){
   const a = athletes[activeAthlete];
   if(!a) return;
   const r = a.runs[a.activeRun];
+  const timeEl = document.getElementById('time');
+  if(!timeEl) return; // nothing to update yet
+
   if(r && r.start && !r.end){
-    activeInterval = setInterval(()=>{ document.getElementById('time').innerText = calcTime(r); }, 50);
+    activeInterval = setInterval(()=>{
+      const el = document.getElementById('time');
+      if(!el){ clearInterval(activeInterval); activeInterval = null; return; }
+      el.innerText = calcTime(r);
+    }, 50);
   } else {
-    document.getElementById('time').innerText = calcTime(r);
+    timeEl.innerText = calcTime(r);
   }
 }
 
@@ -429,7 +473,7 @@ function showAuswertung(){
  win.document.close();
 }
 
-render();
+</script>
 </script>
 <footer style="text-align: center; margin-top: 20px; font-size: 0.9em; color: #555;">
   Made by Vinzent
