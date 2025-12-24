@@ -12,7 +12,8 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{margin:0;font-family:Roboto,sans-serif;background:linear-gradient(135deg, #74b9ff, #0984e3);min-height:100vh;}
 .container{max-width:800px;margin:20px auto;background:#fff;min-height:calc(100vh - 40px);padding:20px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.1);}
-h1{text-align:center;color:#0984e3;margin:20px 0;font-size:2.5em;text-shadow:0 2px 4px rgba(0,0,0,0.1);}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;}
+h1{text-align:center;color:#0984e3;margin:20px 0;font-size:2.5em;text-shadow:0 2px 4px rgba(0,0,0,0.1);flex:1;}
 
 button{min-height:50px;min-width:50px;font-size:16px;font-weight:700;border:none;border-radius:12px;cursor:pointer;transition:all 0.3s ease;}
 .startBtn{background:linear-gradient(135deg, #00b894, #00cec9);color:#fff;box-shadow:0 4px 15px rgba(0,184,148,0.3);}
@@ -23,11 +24,11 @@ button{min-height:50px;min-width:50px;font-size:16px;font-weight:700;border:none
 .resetBtn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(178,190,195,0.4);}
 .bauBtn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(108,92,231,0.4);}
 
-.auswertungBtn{position:absolute;top:20px;right:20px;background:linear-gradient(135deg, #fdcb6e, #e17055);color:#fff;padding:10px 20px;border-radius:10px;font-size:14px;font-weight:700;box-shadow:0 4px 15px rgba(253,203,110,0.3);transition:all 0.3s ease;}
+.auswertungBtn{background:linear-gradient(135deg, #fdcb6e, #e17055);color:#fff;padding:10px 20px;border-radius:10px;font-size:14px;font-weight:700;box-shadow:0 4px 15px rgba(253,203,110,0.3);transition:all 0.3s ease;}
 .auswertungBtn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(253,203,110,0.4);}
 
-.tab-bar{display:flex;overflow-x:auto;border-bottom:3px solid #ddd;background:#f8f9fa;border-radius:10px 10px 0 0;padding:5px;}
-.tab-btn{padding:15px 20px;background:none;border:none;font-weight:700;color:#666;border-radius:10px;transition:all 0.3s ease;}
+.tab-bar{display:flex;overflow-x:auto;border-bottom:3px solid #ddd;background:#f8f9fa;border-radius:10px 10px 0 0;padding:5px;flex-wrap:wrap;justify-content:flex-start;}
+.tab-btn{padding:15px 20px;background:none;border:none;font-weight:700;color:#666;border-radius:10px;transition:all 0.3s ease;min-width:150px;flex-shrink:0;}
 .tab-btn.active{color:#0984e3;border-bottom:3px solid #0984e3;background:#e3f2fd;}
 .tab-btn:hover{background:#f1f1f1;}
 
@@ -62,14 +63,18 @@ input[type="text"]:focus{border-color:#0984e3;outline:none;}
  .summary{display:none;}
  .controls{flex-direction:column;gap:10px;}
  .lauf-switch{flex-direction:column;}
+ .header{flex-direction:column;gap:10px;}
+ .auswertungBtn{align-self:flex-end;}
 }
 </style>
 </head>
 
 <body>
 <div class="container">
+<div class="header">
 <h1>Kanu Timer</h1>
 <button id="auswertungBtn" class="auswertungBtn" onclick="showAuswertung()">Auswertung</button>
+</div>
 
 <div style="display:flex;gap:8px;margin-bottom:10px;">
   <input id="athleteName" placeholder="Sportler Name" style="flex:1;font-size:16px;">
@@ -199,21 +204,39 @@ function setStrafe(i,v){
 function showAuswertung(){
  let maxTore = Math.max(...athletes.map(a => a.anzahlTore));
  let labels = Array.from({length: maxTore}, (_, i) => `Tor ${i+1}`);
- let data = Array(maxTore).fill(0);
+ let data2 = Array(maxTore).fill(0);
+ let data50 = Array(maxTore).fill(0);
  athletes.forEach(a => {
   a.runs.forEach(run => {
    run.strafen.forEach((strafe, i) => {
-    if (i < maxTore) data[i] += strafe;
+    if (i < maxTore) {
+     if (strafe === 2) data2[i] += strafe;
+     else if (strafe === 50) data50[i] += strafe;
+    }
    });
   });
  });
  let datasets = [{
-  label: 'Gesamt Strafsekunden',
-  data: data,
-  backgroundColor: 'rgba(214, 48, 49, 0.6)',
-  borderColor: 'rgba(214, 48, 49, 1)',
+  label: '2-Sekunden-Strafen',
+  data: data2,
+  backgroundColor: 'rgba(255, 193, 7, 0.8)',
+  borderColor: 'rgba(255, 193, 7, 1)',
+  borderWidth: 1
+ }, {
+  label: '50-Sekunden-Strafen',
+  data: data50,
+  backgroundColor: 'rgba(220, 53, 69, 0.8)',
+  borderColor: 'rgba(220, 53, 69, 1)',
   borderWidth: 1
  }];
+
+ // Rangliste berechnen
+ let results = athletes.map(a => {
+  let t1 = timeVal(a.runs[0]);
+  let t2 = timeVal(a.runs[1]);
+  let bestTime = Math.min(t1 || Infinity, t2 || Infinity);
+  return {name: a.name, bestTime};
+ }).filter(r => r.bestTime !== Infinity).sort((a,b) => a.bestTime - b.bestTime);
 
  let html = `
   <html>
@@ -238,7 +261,26 @@ function showAuswertung(){
   </head>
   <body>
   <div class="container">
-  <h1>Kanu Timer - Auswertung</h1>
+  <h1>Kanu Timer - Auswertung</h1>`;
+ 
+ if(results.length > 0){
+  let firstTime = results[0].bestTime;
+  html += `
+  <h2>Rangliste</h2>
+  <table>
+   <tr><th>Rang</th><th>Sportler</th><th>Beste Zeit</th><th>Abstand (s)</th><th>Abstand (%)</th></tr>`;
+  results.forEach((r, i) => {
+   let diffSec = (r.bestTime - firstTime).toFixed(2);
+   let diffPerc = firstTime > 0 ? ((r.bestTime - firstTime) / firstTime * 100).toFixed(2) : '0.00';
+   html += `<tr><td>${i+1}</td><td>${r.name}</td><td>${r.bestTime.toFixed(2)} s</td><td>${diffSec} s</td><td>${diffPerc} %</td></tr>`;
+  });
+  html += `</table>`;
+ }
+ 
+ html += `<hr style="margin: 40px 0; border: none; border-top: 2px solid #ddd;">`;
+ 
+ html += `
+  <h2>Einzelauswertung</h2>
   <table>
    <tr><th>Sportler</th><th>Lauf 1 Zeit</th><th>Lauf 1 Strafen pro Tor</th><th>Lauf 2 Zeit</th><th>Lauf 2 Strafen pro Tor</th></tr>`;
  
@@ -252,6 +294,9 @@ function showAuswertung(){
  
  html += `
   </table>
+  
+  <hr style="margin: 40px 0; border: none; border-top: 2px solid #ddd;">
+  
   <h2>Analyse der Strafsekunden pro Tor</h2>
   <canvas id="strafeChart" width="400" height="200"></canvas>
   </div>
@@ -275,17 +320,19 @@ function showAuswertung(){
       }
      },
      scales: {
+      x: {
+       stacked: true,
+       title: {
+        display: true,
+        text: 'Tor'
+       }
+      },
       y: {
+       stacked: true,
        beginAtZero: true,
        title: {
         display: true,
         text: 'Strafsekunden'
-       }
-      },
-      x: {
-       title: {
-        display: true,
-        text: 'Tor'
        }
       }
      }
