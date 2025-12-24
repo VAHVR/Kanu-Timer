@@ -138,6 +138,19 @@ firebase.initializeApp(firebaseConfig);
 console.log("Firebase DB:", firebase.database().ref().toString());
 const db = firebase.database();
 
+function update(){
+  // Sicherheitscheck, falls Daten gerade laden
+  if(!athletes[activeAthlete]) return;
+
+  // Wir holen uns immer frisch das Objekt aus dem Array, 
+  // da 'initOnline' das Array ausgetauscht haben könnte.
+  const currentAthlete = athletes[activeAthlete];
+  const currentRun = currentAthlete.runs[currentAthlete.activeRun];
+  
+  // Zeige die Zeit des aktuell ausgewählten Laufs an
+  document.getElementById("time").innerText = calcTime(currentRun);
+}
+
 let athletes = JSON.parse(localStorage.getItem('athletes')) || [];
 let activeAthlete = athletes.length > 0 ? 0 : 0;
 
@@ -159,25 +172,34 @@ function initOnline(){
   db.ref("athletes").on("value", snap => {
     const remoteAthletes = snap.val() || [];
 
-    // Wir müssen die neuen Daten mit den alten abgleichen
-    // um laufende Timer (Intervalle) nicht zu zerstören.
     remoteAthletes.forEach((remAthlete, i) => {
-       // Sicherheitscheck: Gibt es den Sportler lokal schon?
-       if(athletes[i]) {
+       const localAthlete = athletes[i];
+       
+       if(localAthlete) {
          remAthlete.runs.forEach((remRun, rIndex) => {
-           const localRun = athletes[i].runs[rIndex];
+           const localRun = localAthlete.runs[rIndex];
            
-           // Wenn lokal ein Timer läuft, retten wir die ID in das neue Objekt
-           if(localRun && localRun.interval) {
-             remRun.interval = localRun.interval; 
-             // Wir vertrauen dem lokalen Running-Status mehr als der DB Verzögerung
-             remRun.running = true; 
+           if(localRun) {
+             // FALL 1: Timer läuft lokal gerade
+             // Wir ignorieren ALLES vom Server, damit es nicht ruckelt
+             if(localRun.interval && localRun.running) {
+                remRun.interval = localRun.interval;
+                remRun.running = true;
+                remRun.start = localRun.start; // Lokale Startzeit erzwingen
+                remRun.end = null;
+             }
+             // FALL 2: Lauf ist beendet (Stop wurde gedrückt)
+             // Wir behalten unsere lokalen Zeiten, damit sich das Ergebnis nicht ändert
+             else if(localRun.start && localRun.end) {
+                remRun.start = localRun.start;
+                remRun.end = localRun.end;
+                remRun.running = false;
+             }
            }
          });
        }
 
-       // FIX für Arrays: Firebase löscht Arrays, wenn sie nur 0 enthalten.
-       // Wir müssen sie wiederherstellen, sonst crasht die Berechnung.
+       // Strafen-Arrays reparieren (Firebase mag keine leeren Arrays)
        remAthlete.runs.forEach(r => {
          if(!r.strafen) {
             r.strafen = new Array(remAthlete.anzahlTore || 20).fill(0);
@@ -187,6 +209,8 @@ function initOnline(){
 
     athletes = remoteAthletes;
     render();
+    // Einmal manuell updaten, damit die Zeit sofort stimmt
+    if(document.getElementById("time")) update();
   });
 }
 
@@ -246,53 +270,79 @@ function switchRun(r){athletes[activeAthlete].activeRun=r;render();save();}
 function start() {
   const a = athletes[activeAthlete];
   const r = a.runs[a.activeRun];
+  
+  // Nichts tun, wenn schon läuft oder schon fertig
   if(r.running || r.end) return;
 
-  // Wir nehmen JETZT die Zeit und nutzen sie überall
   const now = Date.now();
-  
   r.start = now;
   r.running = true;
+  
+  // Intervall starten
+  if(r.interval) clearInterval(r.interval);
   r.interval = setInterval(update, 50);
 
-  if(mode === "offline") {
-    save();
-    render();
-  } else {
-    // Online: Wir senden direkt die Zahl 'now' anstatt ServerValue.TIMESTAMP
-    // Das verhindert das NaN/Objekt Problem komplett.
+  // Sofort speichern (Lokal update zuerst!)
+  render();
+
+  if(mode === "online") {
+    // Nur Startzeit an DB senden
     db.ref(`athletes/${activeAthlete}/runs/${a.activeRun}`).update({ 
-        start: now 
+        start: now,
+        end: null // Sicherheitshalber Ende löschen
     });
+  } else {
+    save();
   }
 }
 
 function stop() {
   const a = athletes[activeAthlete];
   const r = a.runs[a.activeRun];
+  
   if(!r.running) return;
 
+  // 1. Timer stoppen
   clearInterval(r.interval);
+  r.interval = null;
   r.running = false;
   
+  // 2. Endzeit setzen
   const now = Date.now();
   r.end = now;
 
-  if(mode === "offline") {
-    save();
-    render();
-  } else {
-    // Online: Auch hier direkt die Zahl senden
+  // 3. UI sofort aktualisieren (wichtig, damit das Bild "einfriert")
+  render();
+
+  if(mode === "online") {
+    // An DB senden
     db.ref(`athletes/${activeAthlete}/runs/${a.activeRun}`).update({ 
         end: now 
     });
+  } else {
+    save();
   }
 }
 
 
 function reset(){
- const a=athletes[activeAthlete];
- a.runs[a.activeRun]=newRun(a.anzahlTore);render();save();
+ const a = athletes[activeAthlete];
+ // Lauf komplett neu erstellen
+ const newR = newRun(a.anzahlTore);
+ 
+ // Alten Intervall killen, falls er noch läuft
+ if(a.runs[a.activeRun].interval) clearInterval(a.runs[a.activeRun].interval);
+ 
+ a.runs[a.activeRun] = newR;
+ 
+ render();
+ 
+ if(mode === "online"){
+   // Im Online Modus müssen wir explizit null senden
+   db.ref(`athletes/${activeAthlete}/runs/${a.activeRun}`).set(newR);
+ } else {
+   save();
+ }
 }
 
 function update(){
