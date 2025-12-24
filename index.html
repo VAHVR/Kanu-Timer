@@ -157,14 +157,14 @@ function switchRun(r){athletes[activeAthlete].activeRun=r;render();save();}
 function start(){
  const r=athletes[activeAthlete].runs[athletes[activeAthlete].activeRun];
  if(r.running||r.end)return;
- r.start=Date.now();r.running=true;r.interval=setInterval(update,50);
+ r.start=Date.now();r.running=true;r.interval=setInterval(update,50);save();
 }
 
 function stop(){
  const r=athletes[activeAthlete].runs[athletes[activeAthlete].activeRun];
  if(!r.running)return;
  clearInterval(r.interval);r.running=false;r.end=Date.now();
- render(); // <<< Aktualisierung bei Ziel
+ render();save(); // <<< Aktualisierung bei Ziel
 }
 
 function reset(){
@@ -371,5 +371,8 @@ function showAuswertung(){
 
 render();
 </script>
+<footer style="text-align: center; margin-top: 20px; font-size: 0.9em; color: #555;">
+  Made by Vinzent
+</footer>
 </body>
 </html>
