@@ -226,13 +226,13 @@ function start() {
     r.start = Date.now();
     r.interval = setInterval(update, 50);
     save();
+    render();
   } else {
-    // Online-Modus: schreibe Timestamp in Firebase
-    const runRef = db.ref(`athletes/${activeAthlete}/runs/${a.activeRun}/start`);
-    runRef.set(firebase.database.ServerValue.TIMESTAMP, () => {
-      // danach sofort aus Firebase lesen
-      runRef.once("value", snap => {
-        r.start = snap.val();  // echte Server-Zeit
+    const runRef = db.ref(`athletes/${activeAthlete}/runs/${a.activeRun}`);
+    runRef.update({ start: firebase.database.ServerValue.TIMESTAMP }).then(() => {
+      // einmal vom Server laden
+      runRef.child("start").once("value", snap => {
+        r.start = snap.val();
         r.interval = setInterval(update, 50);
         save();
         render();
@@ -254,9 +254,9 @@ function stop() {
     save();
     render();
   } else {
-    const runRef = db.ref(`athletes/${activeAthlete}/runs/${a.activeRun}/end`);
-    runRef.set(firebase.database.ServerValue.TIMESTAMP, () => {
-      runRef.once("value", snap => {
+    const runRef = db.ref(`athletes/${activeAthlete}/runs/${a.activeRun}`);
+    runRef.update({ end: firebase.database.ServerValue.TIMESTAMP }).then(() => {
+      runRef.child("end").once("value", snap => {
         r.end = snap.val();
         save();
         render();
@@ -264,6 +264,7 @@ function stop() {
     });
   }
 }
+
 
 function reset(){
  const a=athletes[activeAthlete];
