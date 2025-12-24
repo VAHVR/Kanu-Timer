@@ -2,104 +2,262 @@
 <html>
 <head>
   <title>Kanu Timer mit Tor-Strafen</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: linear-gradient(135deg, #74b9ff, #0984e3);
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      background: rgba(255,255,255,0.95);
+      padding: 30px;
+      border-radius: 15px;
+      max-width: 600px;
+      width: 100%;
+    }
+
+    h1 {
+      text-align: center;
+      color: #0984e3;
+    }
+
+    button {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 8px;
+      font-weight: 700;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .startBtn { background:#00b894; color:white; }
+    .stopBtn { background:#e17055; color:white; }
+    .resetBtn { background:#fdcb6e; }
+    .bauBtn { background:#6c5ce7; color:white; }
+
+    .tab-bar {
+      display:flex;
+      border-bottom:2px solid #ddd;
+      margin-bottom:20px;
+    }
+
+    .tab-btn {
+      background:none;
+      border:none;
+      padding:10px 15px;
+      font-weight:700;
+      cursor:pointer;
+      color:#666;
+    }
+
+    .tab-btn.active {
+      color:#0984e3;
+      border-bottom:3px solid #0984e3;
+    }
+
+    .athlete-content { display:none; }
+    .athlete-content.active { display:block; }
+
+    .controls {
+      display:flex;
+      justify-content:center;
+      gap:10px;
+      margin-bottom:15px;
+    }
+
+    .output {
+      text-align:center;
+      font-size:1.6em;
+      font-weight:700;
+      color:#0984e3;
+      margin:15px 0;
+    }
+
+    .tor-setup {
+      display:flex;
+      justify-content:center;
+      gap:10px;
+      margin-bottom:20px;
+    }
+
+    .tor-setup.hidden { display:none; }
+
+    .tor {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:8px;
+      padding:10px;
+      background:#f7f7f7;
+      border-radius:8px;
+    }
+
+    .strafe-btn {
+      padding:6px 12px;
+      border-radius:6px;
+      background:#ddd;
+      font-weight:700;
+    }
+
+    .strafe-btn.selected {
+      background:#e17055;
+      color:white;
+    }
+  </style>
 </head>
+
 <body>
+<div class="container">
+  <h1>Kanu Timer</h1>
 
-<h1>Kanu Timer</h1>
+  <div style="text-align:center; margin-bottom:20px;">
+    <input type="text" id="athleteName" placeholder="Sportler Name">
+    <button onclick="addAthlete()">Hinzufügen</button>
+  </div>
 
-<button onclick="start()">Start</button>
-<button onclick="stop()">Ziel</button>
-<button onclick="reset()">Reset</button>
-
-<p id="output">Zeit: -</p>
-
-<p>
-  Anzahl Tore: <input type="number" id="anzahlTore" value="6" min="1">
-  <button onclick="bauTore()">OK</button>
-</p>
-
-<div id="torContainer"></div>
+  <div id="tabBar" class="tab-bar"></div>
+  <div id="athletesContainer"></div>
+</div>
 
 <script>
-  // Variablen
-  let startTime = null;
-  let intervalId = null;
-  let los = 0;
-  let torStrafen = [];
+let athletes = [];
+let activeAthleteIndex = 0;
 
-  // Start-Funktion
-  function start() {
-    if (los === 1) {
-      alert("Lauf läuft schon!");
-      return;
-    }
-    startTime = Date.now();
-    los = 1;
-    intervalId = setInterval(updateTime, 100);
-  }
+function addAthlete() {
+  const name = athleteName.value.trim();
+  if (!name) return;
 
-  // Stop-Funktion
-  function stop() {
-    if (los === 1) {
-      updateTime(); // final update
-      clearInterval(intervalId);
-      los = 0;
-    } else {
-      alert("Bitte zuerst Start drücken!");
-    }
-  }
+  athletes.push({
+    name,
+    startTime:null,
+    intervalId:null,
+    running:false,
+    torStrafen:[],
+    anzahlTore:20
+  });
 
-  // Reset-Funktion
-  function reset() {
-    clearInterval(intervalId);
-    startTime = null;
-    los = 0;
-    torStrafen = torStrafen.map(_ => 0);
-    document.getElementById("output").innerText = "Zeit: -";
+  activeAthleteIndex = athletes.length - 1;
+  athleteName.value = "";
+  renderAthletes();
+}
 
-    // reset Anzeige der Tor-Strafen
-    for (let i = 0; i < torStrafen.length; i++) {
-      const span = document.getElementById(`tor${i}Anzeige`);
-      if(span) span.innerText = "0";
-    }
-  }
+function switchToAthlete(i){
+  activeAthleteIndex = i;
+  renderAthletes();
+}
 
-  // Live-Zeit aktualisieren
-  function updateTime() {
-    const currentTime = (Date.now() - startTime) / 1000;
-    const totalStrafen = torStrafen.reduce((a, b) => a + b, 0);
-    const totalTime = currentTime + totalStrafen;
-    document.getElementById("output").innerText =
-      "Zeit: " + totalTime.toFixed(2) + " s";
-  }
+function renderAthletes(){
+  tabBar.innerHTML = "";
+  athletesContainer.innerHTML = "";
 
-  // Dynamische Tore bauen
-  function bauTore() {
-    const container = document.getElementById("torContainer");
-    container.innerHTML = "";
-    const n = parseInt(document.getElementById("anzahlTore").value);
-    torStrafen = new Array(n).fill(0);
+  athletes.forEach((a,i)=>{
+    const tab = document.createElement("button");
+    tab.className = "tab-btn"+(i===activeAthleteIndex?" active":"");
+    tab.textContent = a.name;
+    tab.onclick = ()=>switchToAthlete(i);
+    tabBar.appendChild(tab);
 
-    for (let i = 0; i < n; i++) {
-      const div = document.createElement("div");
-      div.className = "tor";
-      div.innerHTML = `
-        Tor ${i + 1}:
-        <button onclick="setStrafe(${i},50)">50</button>
-        <button onclick="setStrafe(${i},2)">2</button>
-        <button onclick="setStrafe(${i},0)">/</button>
-        <span id="tor${i}Anzeige">0</span>
-      `;
-      container.appendChild(div);
-    }
-  }
+    const div = document.createElement("div");
+    div.className = "athlete-content"+(i===activeAthleteIndex?" active":"");
+    div.innerHTML = `
+      <div class="controls">
+        <button class="startBtn" onclick="start(${i})">Start</button>
+        <button class="stopBtn" onclick="stop(${i})">Ziel</button>
+        <button class="resetBtn" onclick="reset(${i})">Reset</button>
+      </div>
 
-  // Torstrafe setzen
-  function setStrafe(index, wert) {
-    torStrafen[index] = wert;
-    document.getElementById(`tor${index}Anzeige`).innerText = wert;
-  }
+      <div class="output" id="output${i}">Zeit: -</div>
+
+      <div class="tor-setup">
+       <label for="anzahlTore${i}"><strong>Anzahl Tore:</strong></label>
+       <input type="number" id="anzahlTore${i}" value="${a.anzahlTore}" min="1" max="30">
+       <button class="bauBtn" onclick="bauTore(${i})">OK</button>
+      </div>
+
+
+      <div id="torContainer${i}"></div>
+    `;
+    athletesContainer.appendChild(div);
+    renderTore(i);
+  });
+}
+
+function start(i){
+  const a = athletes[i];
+  if (a.running) return alert("Lauf läuft bereits!");
+  if (a.startTime && !a.running) return alert("Bitte Reset drücken!");
+
+  a.startTime = Date.now();
+  a.running = true;
+  a.intervalId = setInterval(()=>updateTime(i),50);
+}
+
+function stop(i){
+  const a = athletes[i];
+  if (!a.running) return alert("Bitte zuerst Start!");
+  clearInterval(a.intervalId);
+  a.running = false;
+  updateTime(i);
+}
+
+function reset(i){
+  const a = athletes[i];
+  clearInterval(a.intervalId);
+  a.startTime = null;
+  a.running = false;
+  a.torStrafen = a.torStrafen.map(()=>0);
+  document.getElementById(`output${i}`).innerText="Zeit: -";
+
+  document.querySelector(".athlete-content.active .tor-setup")?.classList.remove("hidden");
+  renderTore(i);
+}
+
+function updateTime(i){
+  const a = athletes[i];
+  if (!a.startTime) return;
+  const lauf = (Date.now()-a.startTime)/1000;
+  const strafen = a.torStrafen.reduce((x,y)=>x+y,0);
+  document.getElementById(`output${i}`).innerText =
+    "Zeit: "+(lauf+strafen).toFixed(2)+" s";
+}
+
+function bauTore(i){
+  const a = athletes[i];
+  a.anzahlTore = +document.getElementById(`anzahlTore${i}`).value;
+  a.torStrafen = new Array(a.anzahlTore).fill(0);
+  document.querySelector(".athlete-content.active .tor-setup").classList.add("hidden");
+  renderTore(i);
+}
+
+function renderTore(i){
+  const c = document.getElementById(`torContainer${i}`);
+  c.innerHTML="";
+  athletes[i].torStrafen.forEach((v,t)=>{
+    const d = document.createElement("div");
+    d.className="tor";
+    d.innerHTML=`
+      <strong>Tor ${t+1}</strong>
+      <button class="strafe-btn ${v===50?"selected":""}" onclick="setStrafe(${i},${t},50,this)">50</button>
+      <button class="strafe-btn ${v===2?"selected":""}" onclick="setStrafe(${i},${t},2,this)">2</button>
+      <button class="strafe-btn ${v===0?"selected":""}" onclick="setStrafe(${i},${t},0,this)">/</button>
+    `;
+    c.appendChild(d);
+  });
+}
+
+function setStrafe(ai,ti,val,btn){
+  athletes[ai].torStrafen[ti]=val;
+  btn.parentElement.querySelectorAll("button")
+    .forEach(b=>b.classList.toggle("selected",b===btn));
+  updateTime(ai);
+}
 </script>
-
 </body>
 </html>
