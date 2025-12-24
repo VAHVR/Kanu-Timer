@@ -5,8 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Kanu Timer</title>
 
+<div style="margin-top:10px; text-align:center;">
+  <label style="font-weight:700;">
+    <input type="checkbox" id="modeSwitch" onchange="toggleMode()">
+    Online-Modus
+  </label>
+</div>
+
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -94,11 +103,56 @@ input[type="text"]:focus{border-color:#0984e3;outline:none;}
 </div>
 
 <script>
+let mode = localStorage.getItem("mode") || "offline";
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("modeSwitch").checked = mode === "online";
+  if(mode === "online") initOnline();
+});
+
+function toggleMode(){
+  mode = document.getElementById("modeSwitch").checked ? "online" : "offline";
+  localStorage.setItem("mode", mode);
+
+  if(mode === "online"){
+    initOnline();
+  } else {
+    loadOffline();
+  }
+}
+
+const firebaseConfig = {
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  databaseURL: "https://DEIN_PROJEKT.firebaseio.com",
+  projectId: "DEIN_PROJEKT"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
 let athletes = JSON.parse(localStorage.getItem('athletes')) || [];
 let activeAthlete = athletes.length > 0 ? 0 : 0;
 
-function save() {
- localStorage.setItem('athletes', JSON.stringify(athletes));
+function save(){
+  if(mode === "offline"){
+    localStorage.setItem('athletes', JSON.stringify(athletes));
+  } else {
+    db.ref("athletes").set(athletes);
+  }
+}
+
+function loadOffline(){
+  athletes = JSON.parse(localStorage.getItem('athletes')) || [];
+  render();
+}
+
+function initOnline(){
+  db.ref("athletes").off(); // doppelte Listener vermeiden
+  db.ref("athletes").on("value", snap => {
+    athletes = snap.val() || [];
+    render();
+  });
 }
 
 function newRun(t){return{start:null,end:null,running:false,interval:null,strafen:new Array(t).fill(0),toreGebaut:false};}
@@ -155,16 +209,31 @@ function render(){
 function switchRun(r){athletes[activeAthlete].activeRun=r;render();save();}
 
 function start(){
- const r=athletes[activeAthlete].runs[athletes[activeAthlete].activeRun];
- if(r.running||r.end)return;
- r.start=Date.now();r.running=true;r.interval=setInterval(update,50);save();
+ const r = athletes[activeAthlete].runs[athletes[activeAthlete].activeRun];
+ if(r.running || r.end) return;
+
+ r.start = mode === "online"
+   ? firebase.database.ServerValue.TIMESTAMP
+   : Date.now();
+
+ r.running = true;
+ r.interval = setInterval(update, 50);
+ save();
 }
 
 function stop(){
- const r=athletes[activeAthlete].runs[athletes[activeAthlete].activeRun];
- if(!r.running)return;
- clearInterval(r.interval);r.running=false;r.end=Date.now();
- render();save(); // <<< Aktualisierung bei Ziel
+ const r = athletes[activeAthlete].runs[athletes[activeAthlete].activeRun];
+ if(!r.running) return;
+
+ clearInterval(r.interval);
+ r.running = false;
+
+ r.end = mode === "online"
+   ? firebase.database.ServerValue.TIMESTAMP
+   : Date.now();
+
+ render();
+ save();
 }
 
 function reset(){
