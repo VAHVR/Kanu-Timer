@@ -220,20 +220,18 @@ function start() {
   const r = a.runs[a.activeRun];
   if(r.running || r.end) return;
 
+  r.start = Date.now();
   r.running = true;
+  r.interval = setInterval(update, 50);
 
   if(mode === "offline") {
-    r.start = Date.now();
-    r.interval = setInterval(update, 50);
     save();
     render();
   } else {
     const runRef = db.ref(`athletes/${activeAthlete}/runs/${a.activeRun}`);
     runRef.update({ start: firebase.database.ServerValue.TIMESTAMP }).then(() => {
-      // einmal vom Server laden
       runRef.child("start").once("value", snap => {
         r.start = snap.val();
-        r.interval = setInterval(update, 50);
         save();
         render();
       });
@@ -248,9 +246,9 @@ function stop() {
 
   clearInterval(r.interval);
   r.running = false;
+  r.end = Date.now();
 
   if(mode === "offline") {
-    r.end = Date.now();
     save();
     render();
   } else {
