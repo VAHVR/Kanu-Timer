@@ -333,7 +333,7 @@ function reset(){
   a.runs[a.activeRun] = resetRun;
   
   if(mode === "online"){
-    db.ref(`athletes/${activeAthlete}/runs/${a.activeRun}`).update({
+    db.ref(`athletes/${activeAthlete}/runs/${a.activeRun}`).set({
       start: null,
       end: null,
       strafen: resetRun.strafen,
