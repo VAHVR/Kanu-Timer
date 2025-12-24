@@ -215,32 +215,28 @@ function render(){
 
 function switchRun(r){athletes[activeAthlete].activeRun=r;render();save();}
 
-function start(){
- const r = athletes[activeAthlete].runs[athletes[activeAthlete].activeRun];
- if(r.running || r.end) return;
+function start() {
+  const a = athletes[activeAthlete];
+  const r = a.runs[a.activeRun];
+  if(r.running || r.end) return;
 
- r.start = mode === "online"
-   ? firebase.database.ServerValue.TIMESTAMP
-   : Date.now();
-
- r.running = true;
- r.interval = setInterval(update, 50);
- save();
+  r.start = Date.now();
+  r.running = true;
+  r.interval = setInterval(update, 50);
+  save();
 }
 
-function stop(){
- const r = athletes[activeAthlete].runs[athletes[activeAthlete].activeRun];
- if(!r.running) return;
+function stop() {
+  const a = athletes[activeAthlete];
+  const r = a.runs[a.activeRun];
+  if(!r.running) return;
 
- clearInterval(r.interval);
- r.running = false;
+  clearInterval(r.interval);
+  r.running = false;
 
- r.end = mode === "online"
-   ? firebase.database.ServerValue.TIMESTAMP
-   : Date.now();
-
- render();
- save();
+  r.end = Date.now();
+  save();
+  render();
 }
 
 function reset(){
@@ -296,6 +292,13 @@ function resetAll(){
   localStorage.removeItem('athletes');
   activeAthlete = 0;
   render();
+  if(mode === "online"){
+   db.ref("athletes").set([]);
+  } 
+  else {
+  localStorage.removeItem('athletes');
+  }
+
  }
 }
 
