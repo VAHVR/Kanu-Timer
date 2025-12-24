@@ -1,263 +1,198 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
-  <title>Kanu Timer mit Tor-Strafen</title>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Kanu Timer</title>
 
-  <style>
-    body {
-      font-family: 'Roboto', sans-serif;
-      background: linear-gradient(135deg, #74b9ff, #0984e3);
-      margin: 0;
-      padding: 20px;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-    }
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
 
-    .container {
-      background: rgba(255,255,255,0.95);
-      padding: 30px;
-      border-radius: 15px;
-      max-width: 600px;
-      width: 100%;
-    }
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{margin:0;font-family:Roboto,sans-serif;background:linear-gradient(135deg, #74b9ff, #0984e3);min-height:100vh;}
+.container{max-width:800px;margin:20px auto;background:#fff;min-height:calc(100vh - 40px);padding:20px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.1);}
+h1{text-align:center;color:#0984e3;margin:20px 0;font-size:2.5em;text-shadow:0 2px 4px rgba(0,0,0,0.1);}
 
-    h1 {
-      text-align: center;
-      color: #0984e3;
-    }
+button{min-height:50px;min-width:50px;font-size:16px;font-weight:700;border:none;border-radius:12px;cursor:pointer;transition:all 0.3s ease;}
+.startBtn{background:linear-gradient(135deg, #00b894, #00cec9);color:#fff;box-shadow:0 4px 15px rgba(0,184,148,0.3);}
+.startBtn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,184,148,0.4);}
+.stopBtn{background:linear-gradient(135deg, #d63031, #e17055);color:#fff;box-shadow:0 4px 15px rgba(214,48,49,0.3);}
+.stopBtn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(214,48,49,0.4);}
+.resetBtn{background:linear-gradient(135deg, #b2bec3, #636e72);color:#fff;box-shadow:0 4px 15px rgba(178,190,195,0.3);}
+.resetBtn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(178,190,195,0.4);}
+.bauBtn{background:linear-gradient(135deg, #6c5ce7, #a29bfe);color:#fff;box-shadow:0 4px 15px rgba(108,92,231,0.3);}
+.bauBtn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(108,92,231,0.4);}
 
-    button {
-      padding: 10px 18px;
-      border: none;
-      border-radius: 8px;
-      font-weight: 700;
-      cursor: pointer;
-      touch-action: manipulation;
-    }
+.tab-bar{display:flex;overflow-x:auto;border-bottom:3px solid #ddd;background:#f8f9fa;border-radius:10px 10px 0 0;padding:5px;}
+.tab-btn{padding:15px 20px;background:none;border:none;font-weight:700;color:#666;border-radius:10px;transition:all 0.3s ease;}
+.tab-btn.active{color:#0984e3;border-bottom:3px solid #0984e3;background:#e3f2fd;}
+.tab-btn:hover{background:#f1f1f1;}
 
-    .startBtn { background:#00b894; color:white; }
-    .stopBtn { background:#e17055; color:white; }
-    .resetBtn { background:#fdcb6e; }
-    .bauBtn { background:#6c5ce7; color:white; }
+.controls{position:sticky;top:0;background:#fff;z-index:10;display:flex;gap:10px;justify-content:center;padding:20px 0;border-bottom:2px solid #ddd;border-radius:10px;margin-bottom:20px;}
 
-    .tab-bar {
-      display:flex;
-      border-bottom:2px solid #ddd;
-      margin-bottom:20px;
-    }
+.lauf-switch{display:flex;gap:10px;margin:20px 0;}
+.lauf-btn{flex:1;padding:16px;font-size:18px;background:linear-gradient(135deg, #dfe6e9, #b2bec3);color:#666;border-radius:10px;transition:all 0.3s ease;}
+.lauf-btn.active{background:linear-gradient(135deg, #0984e3, #74b9ff);color:#fff;box-shadow:0 4px 15px rgba(9,132,227,0.3);}
+.lauf-btn:hover{transform:translateY(-2px);}
 
-    .tab-btn {
-      background:none;
-      border:none;
-      padding:10px 15px;
-      font-weight:700;
-      cursor:pointer;
-      color:#666;
-    }
+.output{text-align:center;font-size:3em;font-weight:700;color:#0984e3;margin:25px 0;text-shadow:0 2px 4px rgba(0,0,0,0.1);background:#f8f9fa;padding:20px;border-radius:15px;border:2px solid #0984e3;}
 
-    .tab-btn.active {
-      color:#0984e3;
-      border-bottom:3px solid #0984e3;
-    }
+.tor-setup{display:flex;gap:10px;align-items:center;margin-bottom:15px;padding:15px;background:#f1f2f6;border-radius:10px;}
+.tor-setup.hidden{display:none;}
+.tor-setup input{width:100px;font-size:18px;border:2px solid #ddd;border-radius:8px;padding:8px;}
 
-    .athlete-content { display:none; }
-    .athlete-content.active { display:block; }
+.tor{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;margin-bottom:8px;align-items:center;padding:10px;background:#fff;border-radius:10px;border:1px solid #ddd;}
+.strafe-btn{min-width:50px;min-height:42px;background:linear-gradient(135deg, #dfe6e9, #b2bec3);color:#666;border-radius:8px;transition:all 0.3s ease;}
+.strafe-btn.selected{background:linear-gradient(135deg, #d63031, #e17055);color:#fff;box-shadow:0 4px 15px rgba(214,48,49,0.3);}
+.strafe-btn:hover{transform:translateY(-2px);}
 
-    .controls {
-      display:flex;
-      justify-content:center;
-      gap:10px;
-      margin-bottom:15px;
-    }
+.summary{margin-top:20px;padding:20px;background:linear-gradient(135deg, #f1f2f6, #dfe6e9);border-radius:15px;text-align:center;box-shadow:0 4px 15px rgba(0,0,0,0.1);}
+.best{color:#00b894;font-weight:700;text-shadow:0 1px 2px rgba(0,184,148,0.3);}
 
-    .output {
-      text-align:center;
-      font-size:1.6em;
-      font-weight:700;
-      color:#0984e3;
-      margin:15px 0;
-    }
+input[type="text"]{padding:12px;font-size:16px;border:2px solid #ddd;border-radius:8px;width:100%;transition:all 0.3s ease;}
+input[type="text"]:focus{border-color:#0984e3;outline:none;}
 
-    .tor-setup {
-      display:flex;
-      justify-content:center;
-      gap:10px;
-      margin-bottom:20px;
-    }
-
-    .tor-setup.hidden { display:none; }
-
-    .tor {
-      display:flex;
-      align-items:center;
-      gap:10px;
-      margin-bottom:8px;
-      padding:10px;
-      background:#f7f7f7;
-      border-radius:8px;
-    }
-
-    .strafe-btn {
-      padding:6px 12px;
-      border-radius:6px;
-      background:#ddd;
-      font-weight:700;
-    }
-
-    .strafe-btn.selected {
-      background:#e17055;
-      color:white;
-    }
-  </style>
+@media(max-width:600px){
+ .container{margin:10px;padding:15px;}
+ h1{font-size:2em;}
+ .output{font-size:2.5em;}
+ .summary{display:none;}
+ .controls{flex-direction:column;gap:10px;}
+ .lauf-switch{flex-direction:column;}
+}
+</style>
 </head>
 
 <body>
 <div class="container">
-  <h1>Kanu Timer</h1>
+<h1>Kanu Timer</h1>
 
-  <div style="text-align:center; margin-bottom:20px;">
-    <input type="text" id="athleteName" placeholder="Sportler Name">
-    <button onclick="addAthlete()">Hinzufügen</button>
-  </div>
+<div style="display:flex;gap:8px;margin-bottom:10px;">
+  <input id="athleteName" placeholder="Sportler Name" style="flex:1;font-size:16px;">
+  <button onclick="addAthlete()">+</button>
+</div>
 
-  <div id="tabBar" class="tab-bar"></div>
-  <div id="athletesContainer"></div>
+<div id="tabBar" class="tab-bar"></div>
+<div id="athletesContainer"></div>
 </div>
 
 <script>
-let athletes = [];
-let activeAthleteIndex = 0;
+let athletes=[],activeAthlete=0;
 
-function addAthlete() {
-  const name = athleteName.value.trim();
-  if (!name) return;
+function newRun(t){return{start:null,end:null,running:false,interval:null,strafen:new Array(t).fill(0),toreGebaut:false};}
 
-  athletes.push({
-    name,
-    startTime:null,
-    intervalId:null,
-    running:false,
-    torStrafen:[],
-    anzahlTore:20
-  });
-
-  activeAthleteIndex = athletes.length - 1;
-  athleteName.value = "";
-  renderAthletes();
+function addAthlete(){
+ if(!athleteName.value.trim())return;
+ athletes.push({name:athleteName.value,activeRun:0,anzahlTore:20,runs:[newRun(20),newRun(20)]});
+ athleteName.value="";activeAthlete=athletes.length-1;render();
 }
 
-function switchToAthlete(i){
-  activeAthleteIndex = i;
-  renderAthletes();
+function render(){
+ tabBar.innerHTML="";athletesContainer.innerHTML="";
+ athletes.forEach((a,i)=>{
+  const b=document.createElement("button");
+  b.className="tab-btn"+(i===activeAthlete?" active":"");
+  b.textContent=a.name;b.onclick=()=>{activeAthlete=i;render();};
+  tabBar.appendChild(b);
+ });
+ if(!athletes.length)return;
+
+ const a=athletes[activeAthlete],r=a.runs[a.activeRun];
+ const t1=timeVal(a.runs[0]),t2=timeVal(a.runs[1]);
+ const best=Math.min(t1||Infinity,t2||Infinity);
+
+ athletesContainer.innerHTML=`
+ <div class="lauf-switch">
+  <button class="lauf-btn ${a.activeRun===0?"active":""}" onclick="switchRun(0)">Lauf 1</button>
+  <button class="lauf-btn ${a.activeRun===1?"active":""}" onclick="switchRun(1)">Lauf 2</button>
+ </div>
+
+ <div class="controls">
+  <button class="startBtn" onclick="start()">Start</button>
+  <button class="stopBtn" onclick="stop()">Ziel</button>
+  <button class="resetBtn" onclick="reset()">Reset</button>
+ </div>
+
+ <div class="output" id="time">${calcTime(r)}</div>
+
+ <div class="tor-setup ${r.toreGebaut?"hidden":""}">
+  <strong>Anzahl Tore:</strong>
+  <input id="anzTore" type="number" value="${a.anzahlTore}" min="1" max="30">
+  <button class="bauBtn" onclick="bauTore()">OK</button>
+ </div>
+
+ <div id="torContainer" style="display:${r.toreGebaut?"block":"none"}"></div>
+
+ <div class="summary">
+  <div class="${t1===best&&best!==Infinity?"best":""}">Lauf 1: ${calcTime(a.runs[0])}</div>
+  <div class="${t2===best&&best!==Infinity?"best":""}">Lauf 2: ${calcTime(a.runs[1])}</div>
+ </div>`;
+ if(r.toreGebaut)renderTore();
 }
 
-function renderAthletes(){
-  tabBar.innerHTML = "";
-  athletesContainer.innerHTML = "";
+function switchRun(r){athletes[activeAthlete].activeRun=r;render();}
 
-  athletes.forEach((a,i)=>{
-    const tab = document.createElement("button");
-    tab.className = "tab-btn"+(i===activeAthleteIndex?" active":"");
-    tab.textContent = a.name;
-    tab.onclick = ()=>switchToAthlete(i);
-    tabBar.appendChild(tab);
-
-    const div = document.createElement("div");
-    div.className = "athlete-content"+(i===activeAthleteIndex?" active":"");
-    div.innerHTML = `
-      <div class="controls">
-        <button class="startBtn" onclick="start(${i})">Start</button>
-        <button class="stopBtn" onclick="stop(${i})">Ziel</button>
-        <button class="resetBtn" onclick="reset(${i})">Reset</button>
-      </div>
-
-      <div class="output" id="output${i}">Zeit: -</div>
-
-      <div class="tor-setup">
-       <label for="anzahlTore${i}"><strong>Anzahl Tore:</strong></label>
-       <input type="number" id="anzahlTore${i}" value="${a.anzahlTore}" min="1" max="30">
-       <button class="bauBtn" onclick="bauTore(${i})">OK</button>
-      </div>
-
-
-      <div id="torContainer${i}"></div>
-    `;
-    athletesContainer.appendChild(div);
-    renderTore(i);
-  });
+function start(){
+ const r=athletes[activeAthlete].runs[athletes[activeAthlete].activeRun];
+ if(r.running||r.end)return;
+ r.start=Date.now();r.running=true;r.interval=setInterval(update,50);
 }
 
-function start(i){
-  const a = athletes[i];
-  if (a.running) return alert("Lauf läuft bereits!");
-  if (a.startTime && !a.running) return alert("Bitte Reset drücken!");
-
-  a.startTime = Date.now();
-  a.running = true;
-  a.intervalId = setInterval(()=>updateTime(i),50);
+function stop(){
+ const r=athletes[activeAthlete].runs[athletes[activeAthlete].activeRun];
+ if(!r.running)return;
+ clearInterval(r.interval);r.running=false;r.end=Date.now();
+ render(); // <<< Aktualisierung bei Ziel
 }
 
-function stop(i){
-  const a = athletes[i];
-  if (!a.running) return alert("Bitte zuerst Start!");
-  clearInterval(a.intervalId);
-  a.running = false;
-  updateTime(i);
+function reset(){
+ const a=athletes[activeAthlete];
+ a.runs[a.activeRun]=newRun(a.anzahlTore);render();
 }
 
-function reset(i){
-  const a = athletes[i];
-  clearInterval(a.intervalId);
-  a.startTime = null;
-  a.running = false;
-  a.torStrafen = a.torStrafen.map(()=>0);
-  document.getElementById(`output${i}`).innerText="Zeit: -";
-
-  document.querySelector(".athlete-content.active .tor-setup")?.classList.remove("hidden");
-  renderTore(i);
+function update(){
+ document.getElementById("time").innerText=
+ calcTime(athletes[activeAthlete].runs[athletes[activeAthlete].activeRun]);
 }
 
-function updateTime(i){
-  const a = athletes[i];
-  if (!a.startTime) return;
-  const lauf = (Date.now()-a.startTime)/1000;
-  const strafen = a.torStrafen.reduce((x,y)=>x+y,0);
-  document.getElementById(`output${i}`).innerText =
-    "Zeit: "+(lauf+strafen).toFixed(2)+" s";
+function timeVal(r){
+ if(!r.start||!r.end)return null;
+ return ((r.end-r.start)/1000)+r.strafen.reduce((a,b)=>a+b,0);
 }
 
-function bauTore(i){
-  const a = athletes[i];
-  a.anzahlTore = +document.getElementById(`anzahlTore${i}`).value;
-  a.torStrafen = new Array(a.anzahlTore).fill(0);
-  document.querySelector(".athlete-content.active .tor-setup").classList.add("hidden");
-  renderTore(i);
+function calcTime(r){
+ if(!r.start)return"-";
+ const base=((r.running?Date.now():r.end)-r.start)/1000;
+ return (base+r.strafen.reduce((a,b)=>a+b,0)).toFixed(2)+" s";
 }
 
-function renderTore(i){
-  const c = document.getElementById(`torContainer${i}`);
-  c.innerHTML="";
-  athletes[i].torStrafen.forEach((v,t)=>{
-    const d = document.createElement("div");
-    d.className="tor";
-    d.innerHTML=`
-      <strong>Tor ${t+1}</strong>
-      <button class="strafe-btn ${v===50?"selected":""}" onclick="setStrafe(${i},${t},50,this)">50</button>
-      <button class="strafe-btn ${v===2?"selected":""}" onclick="setStrafe(${i},${t},2,this)">2</button>
-      <button class="strafe-btn ${v===0?"selected":""}" onclick="setStrafe(${i},${t},0,this)">/</button>
-    `;
-    c.appendChild(d);
-  });
+function bauTore(){
+ const a=athletes[activeAthlete],r=a.runs[a.activeRun];
+ a.anzahlTore=+anzTore.value;
+ r.strafen=new Array(a.anzahlTore).fill(0);
+ r.toreGebaut=true;render();
 }
 
-function setStrafe(ai,ti,val,btn){
-  athletes[ai].torStrafen[ti]=val;
-  btn.parentElement.querySelectorAll("button")
-    .forEach(b=>b.classList.toggle("selected",b===btn));
-  updateTime(ai);
+function renderTore(){
+ const r=athletes[activeAthlete].runs[athletes[activeAthlete].activeRun];
+ torContainer.innerHTML="";
+ r.strafen.forEach((v,i)=>{
+  torContainer.innerHTML+=`
+  <div class="tor">
+   <strong>Tor ${i+1}</strong>
+   <button class="strafe-btn ${v===50?"selected":""}" onclick="setStrafe(${i},50)">50</button>
+   <button class="strafe-btn ${v===2?"selected":""}" onclick="setStrafe(${i},2)">2</button>
+   <button class="strafe-btn ${v===0?"selected":""}" onclick="setStrafe(${i},0)">/</button>
+  </div>`;
+ });
 }
+
+function setStrafe(i,v){
+ athletes[activeAthlete].runs[athletes[activeAthlete].activeRun].strafen[i]=v;
+ render();
+}
+
+render();
 </script>
 </body>
 </html>
