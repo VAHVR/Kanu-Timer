@@ -6,6 +6,7 @@
 <title>Kanu Timer</title>
 
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
@@ -196,14 +197,34 @@ function setStrafe(i,v){
 }
 
 function showAuswertung(){
+ let maxTore = Math.max(...athletes.map(a => a.anzahlTore));
+ let labels = Array.from({length: maxTore}, (_, i) => `Tor ${i+1}`);
+ let data = Array(maxTore).fill(0);
+ athletes.forEach(a => {
+  a.runs.forEach(run => {
+   run.strafen.forEach((strafe, i) => {
+    if (i < maxTore) data[i] += strafe;
+   });
+  });
+ });
+ let datasets = [{
+  label: 'Gesamt Strafsekunden',
+  data: data,
+  backgroundColor: 'rgba(214, 48, 49, 0.6)',
+  borderColor: 'rgba(214, 48, 49, 1)',
+  borderWidth: 1
+ }];
+
  let html = `
   <html>
   <head>
   <title>Auswertung - Kanu Timer</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
   <style>
    body{font-family:Roboto,sans-serif;background:linear-gradient(135deg, #74b9ff, #0984e3);margin:0;padding:20px;}
-   .container{max-width:1000px;margin:auto;background:#fff;padding:20px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.1);}
+   .container{max-width:1200px;margin:auto;background:#fff;padding:20px;border-radius:15px;box-shadow:0 10px 30px rgba(0,0,0,0.1);}
    h1{text-align:center;color:#0984e3;}
+   h2{text-align:center;color:#0984e3;margin:30px 0 10px 0;font-size:1.5em;}
    table{width:100%;border-collapse:collapse;margin-top:20px;}
    th,td{border:1px solid #ddd;padding:10px;text-align:center;}
    th{background:#0984e3;color:#fff;}
@@ -212,6 +233,7 @@ function showAuswertung(){
    .strafe{display:inline-block;padding:2px 5px;background:#dfe6e9;border-radius:5px;margin:1px;}
    .strafe[data-val="50"]{background:#d63031;color:#fff;}
    .strafe[data-val="2"]{background:#e17055;color:#fff;}
+   canvas{margin-top:40px;}
   </style>
   </head>
   <body>
@@ -230,7 +252,46 @@ function showAuswertung(){
  
  html += `
   </table>
+  <h2>Analyse der Strafsekunden pro Tor</h2>
+  <canvas id="strafeChart" width="400" height="200"></canvas>
   </div>
+  <script>
+   const ctx = document.getElementById('strafeChart').getContext('2d');
+   const chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+     labels: ${JSON.stringify(labels)},
+     datasets: ${JSON.stringify(datasets)}
+    },
+    options: {
+     responsive: true,
+     plugins: {
+      legend: {
+       position: 'top',
+      },
+      title: {
+       display: true,
+       text: 'Gesamt Strafsekunden pro Tor (über alle Sportler und Läufe)'
+      }
+     },
+     scales: {
+      y: {
+       beginAtZero: true,
+       title: {
+        display: true,
+        text: 'Strafsekunden'
+       }
+      },
+      x: {
+       title: {
+        display: true,
+        text: 'Tor'
+       }
+      }
+     }
+    }
+   });
+  <\/script>
   </body>
   </html>`;
  
