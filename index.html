@@ -105,22 +105,21 @@ input[type="text"]:focus{border-color:#0984e3;outline:none;}
 </div>
 
 <script>
+// Refactored script with robust Firebase sync
 let mode = localStorage.getItem("mode") || "offline";
+const clientId = Math.random().toString(36).slice(2,9);
+const pendingWrites = {};
+let saveTimeout = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("modeSwitch").checked = mode === "online";
-  if(mode === "online") initOnline();
+  if (mode === "online") initOnline(); else loadOffline();
 });
 
 function toggleMode(){
   mode = document.getElementById("modeSwitch").checked ? "online" : "offline";
   localStorage.setItem("mode", mode);
-
-  if(mode === "online"){
-    initOnline();
-  } else {
-    loadOffline();
-  }
+  if(mode === "online") initOnline(); else loadOffline();
 }
 
 const firebaseConfig = {
@@ -137,281 +136,174 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-function update(){
-  if(!athletes[activeAthlete]) return;
+function now(){return Date.now();}
 
-  const currentAthlete = athletes[activeAthlete];
-  const currentRun = currentAthlete.runs[currentAthlete.activeRun];
-  
-  document.getElementById("time").innerText = calcTime(currentRun);
-}
+function newRun(t){ return { start:null, end:null, strafen:new Array(t).fill(0), toreGebaut:false }; }
 
 let athletes = JSON.parse(localStorage.getItem('athletes')) || [];
-let activeAthlete = athletes.length > 0 ? 0 : 0;
+let activeAthlete = 0;
+let activeInterval = null;
+
+function normalizeAthletes(data){
+  return (data || []).map(a => {
+    a.anzahlTore = a.anzahlTore || 20;
+    a.activeRun = typeof a.activeRun === 'number' ? a.activeRun : 0;
+    a.runs = a.runs && a.runs.length ? a.runs : [newRun(a.anzahlTore), newRun(a.anzahlTore)];
+    a.runs = a.runs.map(r => ({ start: r.start||null, end: r.end||null, strafen: r.strafen || new Array(a.anzahlTore).fill(0), toreGebaut: !!r.toreGebaut }));
+    return a;
+  });
+}
 
 function save(){
-  if(mode === "offline"){
+  if(mode === 'offline'){
     localStorage.setItem('athletes', JSON.stringify(athletes));
-  } else {
-    db.ref("athletes").set(athletes);
+    return Promise.resolve();
   }
+  pendingWrites['/athletes'] = now();
+  return db.ref('athletes').set(athletes).then(()=>{ pendingWrites['/athletes'] = now(); }).catch(err => console.warn('save error', err));
+}
+
+function saveDebounced(){
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(()=>{ save(); }, 120);
 }
 
 function loadOffline(){
   athletes = JSON.parse(localStorage.getItem('athletes')) || [];
+  athletes = normalizeAthletes(athletes);
   render();
 }
 
 function initOnline(){
-  db.ref("athletes").off(); 
-  db.ref("athletes").on("value", snap => {
-    const remoteData = snap.val() || [];
-
-    remoteData.forEach((remAthlete, i) => {
-      if(!athletes[i]) return;
-      
-      remAthlete.runs.forEach((remRun, rIndex) => {
-        const localRun = athletes[i].runs[rIndex];
-        
-        // Wenn der Server sagt: Timer läuft (start ist da, aber kein end)
-        if (remRun.start && !remRun.end) {
-          // Falls wir lokal noch keinen Intervall haben, starten wir ihn
-          if (!localRun.interval) {
-            localRun.start = remRun.start; // Wir übernehmen die Master-Zeit
-            localRun.running = true;
-            localRun.interval = setInterval(update, 50);
-          }
-          // Falls er schon läuft, überschreiben wir die Startzeit NUR, 
-          // wenn die Abweichung riesig ist (>1 Sek), um kleine Sprünge zu verhindern
-          if (Math.abs(localRun.start - remRun.start) > 1000) {
-            localRun.start = remRun.start;
-          }
-        } 
-        // Wenn der Server sagt: Timer ist gestoppt
-        else if (remRun.end) {
-          if (localRun.interval) {
-            clearInterval(localRun.interval);
-            localRun.interval = null;
-          }
-          localRun.running = false;
-          localRun.start = remRun.start;
-          localRun.end = remRun.end;
-        }
-        // Wenn der Server sagt: Reset (kein start, kein end)
-        else {
-          if (localRun.interval) clearInterval(localRun.interval);
-          localRun.interval = null;
-          localRun.running = false;
-          localRun.start = null;
-          localRun.end = null;
-        }
-        
-        // Strafen immer synchronisieren
-        localRun.strafen = remRun.strafen || new Array(remAthlete.anzahlTore || 20).fill(0);
-        localRun.toreGebaut = remRun.toreGebaut;
-      });
-      
-      athletes[i].anzahlTore = remAthlete.anzahlTore;
-    });
-
+  db.ref('athletes').off();
+  db.ref('athletes').on('value', snap => {
+    const remote = snap.val() || [];
+    const lastWrite = pendingWrites['/athletes'] || 0;
+    if(now() - lastWrite < 300) return; // ignore our own echo
+    athletes = normalizeAthletes(remote);
+    restartActiveInterval();
     render();
   });
 }
 
-function newRun(t){return{start:null,end:null,running:false,interval:null,strafen:new Array(t).fill(0),toreGebaut:false};}
+function restartActiveInterval(){
+  if(activeInterval) clearInterval(activeInterval);
+  const a = athletes[activeAthlete];
+  if(!a) return;
+  const r = a.runs[a.activeRun];
+  if(r && r.start && !r.end){
+    activeInterval = setInterval(()=>{ document.getElementById('time').innerText = calcTime(r); }, 50);
+  } else {
+    document.getElementById('time').innerText = calcTime(r);
+  }
+}
 
 function addAthlete(){
- if(!athleteName.value.trim())return;
- athletes.push({name:athleteName.value,activeRun:0,anzahlTore:20,runs:[newRun(20),newRun(20)]});
- athleteName.value="";activeAthlete=athletes.length-1;render();save();
+  const input = document.getElementById('athleteName');
+  if(!input.value.trim()) return;
+  athletes.push({ name: input.value.trim(), activeRun:0, anzahlTore:20, runs:[newRun(20), newRun(20)] });
+  input.value = '';
+  activeAthlete = athletes.length-1;
+  render();
+  saveDebounced();
 }
 
 function render(){
- tabBar.innerHTML="";athletesContainer.innerHTML="";
- athletes.forEach((a,i)=>{
-  const b=document.createElement("button");
-  b.className="tab-btn"+(i===activeAthlete?" active":"");
-  b.textContent=a.name;b.onclick=()=>{activeAthlete=i;render();};
-  tabBar.appendChild(b);
- });
- if(!athletes.length)return;
+  const tabBar = document.getElementById('tabBar');
+  const athletesContainer = document.getElementById('athletesContainer');
+  tabBar.innerHTML = '';
+  athletes.forEach((a,i)=>{
+    const b = document.createElement('button');
+    b.className = 'tab-btn' + (i===activeAthlete ? ' active' : '');
+    b.textContent = a.name || ('Sportler '+(i+1));
+    b.onclick = ()=>{ activeAthlete = i; render(); };
+    tabBar.appendChild(b);
+  });
+  if(!athletes.length){ athletesContainer.innerHTML = ''; return; }
 
- const a=athletes[activeAthlete],r=a.runs[a.activeRun];
- const t1=timeVal(a.runs[0]),t2=timeVal(a.runs[1]);
- const best=Math.min(t1||Infinity,t2||Infinity);
-
- athletesContainer.innerHTML=`
- <div class="lauf-switch">
-  <button class="lauf-btn ${a.activeRun===0?"active":""}" onclick="switchRun(0)">Lauf 1</button>
-  <button class="lauf-btn ${a.activeRun===1?"active":""}" onclick="switchRun(1)">Lauf 2</button>
- </div>
-
- <div class="controls">
-  <button class="startBtn" onclick="start()">Start</button>
-  <button class="stopBtn" onclick="stop()">Ziel</button>
-  <button class="resetBtn" onclick="reset()">Reset</button>
- </div>
-
- <div class="output" id="time">${calcTime(r)}</div>
-
- <div class="tor-setup ${r.toreGebaut?"hidden":""}">
-  <strong>Anzahl Tore:</strong>
-  <input id="anzTore" type="number" value="${a.anzahlTore}" min="1" max="30">
-  <button class="bauBtn" onclick="bauTore()">OK</button>
- </div>
-
- <div id="torContainer" style="display:${r.toreGebaut?"block":"none"}"></div>
-
- <div class="summary">
-  <div class="${t1===best&&best!==Infinity?"best":""}">Lauf 1: ${calcTime(a.runs[0])}</div>
-  <div class="${t2===best&&best!==Infinity?"best":""}">Lauf 2: ${calcTime(a.runs[1])}</div>
- </div>`;
- if(r.toreGebaut)renderTore();
-}
-
-function switchRun(r){athletes[activeAthlete].activeRun=r;render();save();}
-
-function start() {
   const a = athletes[activeAthlete];
   const r = a.runs[a.activeRun];
-  if(r.running || r.end) return;
+  const t1 = timeVal(a.runs[0]), t2 = timeVal(a.runs[1]);
+  const best = Math.min(t1||Infinity, t2||Infinity);
 
-  const now = Date.now();
-  r.start = now;
-  r.running = true;
-  r.interval = setInterval(update, 50);
+  athletesContainer.innerHTML = `
+  <div class="lauf-switch">
+    <button class="lauf-btn ${a.activeRun===0?"active":""}" onclick="switchRun(0)">Lauf 1</button>
+    <button class="lauf-btn ${a.activeRun===1?"active":""}" onclick="switchRun(1)">Lauf 2</button>
+  </div>
+  <div class="controls">
+    <button class="startBtn" onclick="start()">Start</button>
+    <button class="stopBtn" onclick="stop()">Ziel</button>
+    <button class="resetBtn" onclick="reset()">Reset</button>
+  </div>
+  <div class="output" id="time">${calcTime(r)}</div>
+  <div class="tor-setup ${r.toreGebaut?"hidden":""}">
+    <strong>Anzahl Tore:</strong>
+    <input id="anzTore" type="number" value="${a.anzahlTore}" min="1" max="30">
+    <button class="bauBtn" onclick="bauTore()">OK</button>
+  </div>
+  <div id="torContainer" style="display:${r.toreGebaut?"block":"none"}"></div>
+  <div class="summary">
+    <div class="${t1===best&&best!==Infinity?"best":""}">Lauf 1: ${calcTime(a.runs[0])}</div>
+    <div class="${t2===best&&best!==Infinity?"best":""}">Lauf 2: ${calcTime(a.runs[1])}</div>
+  </div>`;
 
-  if(mode === "online") {
-    // Wir setzen end explizit auf null, damit das Handy weiß: Es läuft!
-    db.ref(`athletes/${activeAthlete}/runs/${a.activeRun}`).update({ 
-        start: now,
-        end: null 
-    });
-  } else {
-    save();
-  }
+  if(r.toreGebaut) renderTore();
+  restartActiveInterval();
 }
 
-function stop() {
+function switchRun(rIndex){ athletes[activeAthlete].activeRun = rIndex; render(); saveDebounced(); }
+
+function start(){
   const a = athletes[activeAthlete];
   const r = a.runs[a.activeRun];
-  if(!r.running) return;
-
-  clearInterval(r.interval);
-  r.interval = null;
-  r.running = false;
-  
-  const now = Date.now();
-  r.end = now;
-
-  if(mode === "online") {
-    db.ref(`athletes/${activeAthlete}/runs/${a.activeRun}`).update({ 
-        end: now 
-    });
-  } else {
-    save();
+  if(!r || r.end || (r.start && !r.end)) return;
+  r.start = now(); r.end = null; render();
+  if(mode === 'online'){
+    const path = `athletes/${activeAthlete}/runs/${a.activeRun}`;
+    pendingWrites[`/${path}`] = now();
+    db.ref(path).update({ start: r.start, end: null, __updatedBy: clientId, __updatedAt: now() });
   }
-  render();
+  saveDebounced();
 }
 
+function stop(){
+  const a = athletes[activeAthlete];
+  const r = a.runs[a.activeRun];
+  if(!r || !r.start || r.end) return;
+  r.end = now(); render();
+  if(mode === 'online'){
+    const path = `athletes/${activeAthlete}/runs/${a.activeRun}`;
+    pendingWrites[`/${path}`] = now();
+    db.ref(path).update({ end: r.end, __updatedBy: clientId, __updatedAt: now() });
+  }
+  saveDebounced();
+}
 
 function reset(){
   const a = athletes[activeAthlete];
-  const r = a.runs[a.activeRun];
-  
-  if(r.interval) clearInterval(r.interval);
-  
-  const resetRun = {
-    start: null,
-    end: null,
-    running: false,
-    interval: null,
-    strafen: new Array(a.anzahlTore).fill(0),
-    toreGebaut: r.toreGebaut 
-  };
-  
-  a.runs[a.activeRun] = resetRun;
-  
-  if(mode === "online"){
-    db.ref(`athletes/${activeAthlete}/runs/${a.activeRun}`).set({
-      start: null,
-      end: null,
-      strafen: resetRun.strafen,
-      toreGebaut: resetRun.toreGebaut
-    });
-  } else {
-    save();
-  }
+  if(!a) return;
+  a.runs[a.activeRun] = newRun(a.anzahlTore);
   render();
-}
-
-function update(){
- document.getElementById("time").innerText=
- calcTime(athletes[activeAthlete].runs[athletes[activeAthlete].activeRun]);
-}
-
-function timeVal(r){
- if(!r || !r.start || !r.end) return null;
- 
- const strafenArr = r.strafen || [];
- const penalty = strafenArr.reduce((a,b)=>a+b,0);
- 
- return ((r.end - r.start)/1000) + penalty;
-}
-
-function calcTime(r){
-  if(!r || !r.start) return "-";
-  
-  // Wenn der Lauf beendet ist, nehmen wir STRENG r.end
-  // Wenn er läuft, nehmen wir Date.now()
-  const currentEnd = (r.running || (r.start && !r.end)) ? Date.now() : r.end;
-  
-  const base = (currentEnd - r.start) / 1000;
-  const penalty = (r.strafen || []).reduce((a,b)=>a+b,0);
-  
-  const total = Math.max(0, base + penalty);
-  return total.toFixed(2) + " s";
-}
-function bauTore(){
- const a=athletes[activeAthlete],r=a.runs[a.activeRun];
- a.anzahlTore=+anzTore.value;
- r.strafen=new Array(a.anzahlTore).fill(0);
- r.toreGebaut=true;render();save();
-}
-
-function renderTore(){
- const r=athletes[activeAthlete].runs[athletes[activeAthlete].activeRun];
- torContainer.innerHTML="";
- r.strafen.forEach((v,i)=>{
-  torContainer.innerHTML+=`
-  <div class="tor">
-   <strong>Tor ${i+1}</strong>
-   <button class="strafe-btn ${v===50?"selected":""}" onclick="setStrafe(${i},50)">50</button>
-   <button class="strafe-btn ${v===2?"selected":""}" onclick="setStrafe(${i},2)">2</button>
-   <button class="strafe-btn ${v===0?"selected":""}" onclick="setStrafe(${i},0)">/</button>
-  </div>`;
- });
-}
-
-function setStrafe(i,v){
- athletes[activeAthlete].runs[athletes[activeAthlete].activeRun].strafen[i]=v;
- render();save();
-}
-
-function resetAll(){
- if(confirm('Alle Daten zurücksetzen? Dies löscht alle Sportler und Zeiten.')){
-  athletes = [];
-  activeAthlete = 0;
-  render();
-  if(mode === "online"){
-   db.ref("athletes").set([]);
-  } 
-  else {
-  localStorage.removeItem('athletes');
+  if(mode === 'online'){
+    const path = `athletes/${activeAthlete}/runs/${a.activeRun}`;
+    pendingWrites[`/${path}`] = now();
+    db.ref(path).update({ start: null, end: null, strafen: a.runs[a.activeRun].strafen, toreGebaut: a.runs[a.activeRun].toreGebaut, __updatedBy: clientId, __updatedAt: now() });
   }
-
- }
+  saveDebounced();
 }
+
+function timeVal(r){ if(!r || !r.start || !r.end) return null; const penalty = (r.strafen||[]).reduce((s,v)=>s+v,0); return ((r.end - r.start)/1000) + penalty; }
+
+function calcTime(r){ if(!r || !r.start) return "-"; const running = r.start && !r.end; const currentEnd = running ? now() : r.end; const base = (currentEnd - r.start) / 1000; const penalty = (r.strafen || []).reduce((s,v)=>s+v,0); return Math.max(0, base + penalty).toFixed(2) + ' s'; }
+
+function bauTore(){ const a = athletes[activeAthlete]; const r = a.runs[a.activeRun]; a.anzahlTore = +document.getElementById('anzTore').value; r.strafen = new Array(a.anzahlTore).fill(0); r.toreGebaut = true; render(); saveDebounced(); if(mode === 'online'){ const path = `athletes/${activeAthlete}`; pendingWrites[`/${path}`] = now(); db.ref(path).update({ anzahlTore: a.anzahlTore, runs: a.runs, __updatedBy: clientId, __updatedAt: now() }); } }
+
+function renderTore(){ const r = athletes[activeAthlete].runs[athletes[activeAthlete].activeRun]; const torContainer = document.getElementById('torContainer'); torContainer.innerHTML = ''; r.strafen.forEach((v,i)=>{ const div = document.createElement('div'); div.className = 'tor'; div.innerHTML = `<strong>Tor ${i+1}</strong> <button class="strafe-btn ${v===50?"selected":""}" onclick="setStrafe(${i},50)">50</button> <button class="strafe-btn ${v===2?"selected":""}" onclick="setStrafe(${i},2)">2</button> <button class="strafe-btn ${v===0?"selected":""}" onclick="setStrafe(${i},0)">/</button>`; torContainer.appendChild(div); }); }
+
+function setStrafe(i,v){ const a = athletes[activeAthlete]; a.runs[a.activeRun].strafen[i] = v; render(); saveDebounced(); if(mode === 'online'){ const path = `athletes/${activeAthlete}/runs/${a.activeRun}`; pendingWrites[`/${path}`] = now(); db.ref(path).update({ strafen: a.runs[a.activeRun].strafen, __updatedBy: clientId, __updatedAt: now() }); } }
+
+function resetAll(){ if(!confirm('Alle Daten zurücksetzen? Dies löscht alle Sportler und Zeiten.')) return; athletes = []; activeAthlete = 0; render(); if(mode === 'online') db.ref('athletes').set([]); else localStorage.removeItem('athletes'); }
 
 function showAuswertung(){
  let maxTore = Math.max(...athletes.map(a => a.anzahlTore));
@@ -420,7 +312,7 @@ function showAuswertung(){
  let data50 = Array(maxTore).fill(0);
  athletes.forEach(a => {
   a.runs.forEach(run => {
-   run.strafen.forEach((strafe, i) => {
+   (run.strafen||[]).forEach((strafe, i) => {
     if (i < maxTore) {
      if (strafe === 2) data2[i] += strafe;
      else if (strafe === 50) data50[i] += strafe;
@@ -498,8 +390,8 @@ function showAuswertung(){
  athletes.forEach(a => {
   const t1 = calcTime(a.runs[0]);
   const t2 = calcTime(a.runs[1]);
-  const strafen1 = a.runs[0].strafen.map((s,i) => `<span class="strafe" data-val="${s}">Tor ${i+1}: ${s}s</span>`).join('');
-  const strafen2 = a.runs[1].strafen.map((s,i) => `<span class="strafe" data-val="${s}">Tor ${i+1}: ${s}s</span>`).join('');
+  const strafen1 = (a.runs[0].strafen||[]).map((s,i) => `<span class="strafe" data-val="${s}">Tor ${i+1}: ${s}s</span>`).join('');
+  const strafen2 = (a.runs[1].strafen||[]).map((s,i) => `<span class="strafe" data-val="${s}">Tor ${i+1}: ${s}s</span>`).join('');
   html += `<tr><td>${a.name}</td><td>${t1}</td><td class="tor-strafen">${strafen1}</td><td>${t2}</td><td class="tor-strafen">${strafen2}</td></tr>`;
  });
  
@@ -522,31 +414,10 @@ function showAuswertung(){
     options: {
      responsive: true,
      plugins: {
-      legend: {
-       position: 'top',
-      },
-      title: {
-       display: true,
-       text: 'Gesamt Strafsekunden pro Tor (über alle Sportler und Läufe)'
-      }
+      legend: { position: 'top' },
+      title: { display: true, text: 'Gesamt Strafsekunden pro Tor (über alle Sportler und Läufe)' }
      },
-     scales: {
-      x: {
-       stacked: true,
-       title: {
-        display: true,
-        text: 'Tor'
-       }
-      },
-      y: {
-       stacked: true,
-       beginAtZero: true,
-       title: {
-        display: true,
-        text: 'Strafsekunden'
-       }
-      }
-     }
+     scales: { x: { stacked: true, title: { display: true, text: 'Tor' } }, y: { stacked: true, beginAtZero: true, title: { display: true, text: 'Strafsekunden' } } }
     }
    });
   <\/script>
