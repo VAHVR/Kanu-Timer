@@ -18,14 +18,56 @@ body{margin:0;font-family:Roboto,sans-serif;background:linear-gradient(135deg, #
 .buttons{display:flex;gap:10px;}
 h1{text-align:center;color:#0984e3;margin:20px 0;font-size:2.5em;text-shadow:0 2px 4px rgba(0,0,0,0.1);flex:1;}
 
-button{min-height:50px;min-width:50px;font-size:16px;font-weight:700;border:none;border-radius:12px;cursor:pointer;transition:all 0.3s ease;}
-.startBtn{background:linear-gradient(135deg, #00b894, #00cec9);color:#fff;box-shadow:0 4px 15px rgba(0,184,148,0.3);}
-.startBtn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,184,148,0.4);}
-.stopBtn{background:linear-gradient(135deg, #d63031, #e17055);color:#fff;box-shadow:0 4px 15px rgba(214,48,49,0.3);}
-.stopBtn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(214,48,49,0.4);}
-.resetBtn{background:linear-gradient(135deg, #b2bec3, #636e72);color:#fff;box-shadow:0 4px 15px rgba(178,190,195,0.3);}
-.resetBtn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(178,190,195,0.4);}
-.bauBtn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(108,92,231,0.4);}
+button{
+  min-height:50px;
+  min-width:50px;
+  font-size:16px;
+  font-weight:700;
+  border:none;
+  border-radius:12px;
+  cursor:pointer;
+  transition:all 0.3s ease;
+}
+
+/* Größer (höher) auf dem Handy */
+.startBtn{
+  min-height:70px;
+  background:linear-gradient(135deg, #00b894, #00cec9);
+  color:#fff;
+  box-shadow:0 4px 15px rgba(0,184,148,0.3);
+}
+.startBtn:hover{
+  transform:translateY(-2px);
+  box-shadow:0 6px 20px rgba(0,184,148,0.4);
+}
+
+.stopBtn{
+  min-height:70px;
+  background:linear-gradient(135deg, #d63031, #e17055);
+  color:#fff;
+  box-shadow:0 4px 15px rgba(214,48,49,0.3);
+}
+.stopBtn:hover{
+  transform:translateY(-2px);
+  box-shadow:0 6px 20px rgba(214,48,49,0.4);
+}
+
+/* Etwas kleiner */
+.resetBtn{
+  min-height:40px;
+  background:linear-gradient(135deg, #b2bec3, #636e72);
+  color:#fff;
+  box-shadow:0 4px 15px rgba(178,190,195,0.3);
+}
+.resetBtn:hover{
+  transform:translateY(-2px);
+  box-shadow:0 6px 20px rgba(178,190,195,0.4);
+}
+
+.bauBtn:hover{
+  transform:translateY(-2px);
+  box-shadow:0 6px 20px rgba(108,92,231,0.4);
+}
 
 .auswertungBtn{background:linear-gradient(135deg, #fdcb6e, #e17055);color:#fff;padding:10px 20px;border-radius:10px;font-size:14px;font-weight:700;box-shadow:0 4px 15px rgba(253,203,110,0.3);transition:all 0.3s ease;}
 .auswertungBtn:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(253,203,110,0.4);}
